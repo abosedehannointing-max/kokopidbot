@@ -623,29 +623,16 @@ async def main():
     print("🤖 Bot is running with in-memory storage (no database)!")
     print(f"Active campaigns: {len(active_campaigns)}")
     
-    # Start bot with webhook for Render
+    # Start bot with polling (simpler and more compatible)
+    print("🔄 Starting bot with long polling...")
+    
+    # Initialize and start polling
     await application.initialize()
     await application.start()
+    await application.updater.start_polling()
     
-    # Set webhook
-    render_url = f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME', 'localhost')}"
-    webhook_url = f"{render_url}/"
-    
-    try:
-        await application.bot.set_webhook(webhook_url)
-        print(f"✅ Webhook set to: {webhook_url}")
-    except Exception as e:
-        print(f"⚠️ Webhook error: {e}")
-    
-    # Run webhook
-    await application.updater.start_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path="",
-        webhook_url=webhook_url
-    )
-    
-    print(f"✅ Bot is listening on port {PORT}")
+    print(f"✅ Bot is running and listening for messages!")
+    print(f"💡 Send /start to your bot on Telegram to begin")
     
     # Keep running
     await asyncio.Event().wait()
