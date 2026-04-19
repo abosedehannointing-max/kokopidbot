@@ -1,5 +1,5 @@
 services:
-  - type: web
+  - type: worker
     name: telegram-auto-post-bot
     runtime: python
     repo: https://github.com/YOUR_USERNAME/telegram-auto-post-bot
@@ -7,8 +7,5 @@ services:
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: PORT
-        value: 8080
     buildCommand: pip install -r requirements.txt
     startCommand: python bot.py
-    healthCheckPath: /
