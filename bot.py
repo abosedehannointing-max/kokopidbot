@@ -4,6 +4,7 @@ import random
 import re
 from datetime import datetime, timedelta
 from typing import Dict, List
+from aiohttp import web
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -135,7 +136,7 @@ class AutoPostBot:
             "*Quick Setup (One line):*\n"
             "`@channel | topic | days`\n\n"
             "*Example:*\n"
-            "`@my_channel | Crypto Trading | 7 days`\n\n"
+            "`@AIToolsDail | AI Tools | 7 days`\n\n"
             "*Or use:* /setup for step-by-step\n"
             "*Commands:* /help, /status, /stop",
             parse_mode="Markdown"
@@ -154,7 +155,7 @@ class AutoPostBot:
             "*Quick Format:*\n"
             "`@channel | topic | days`\n\n"
             "*Example:*\n"
-            "`@tech_news | AI Technology | 5 days`\n\n"
+            "`@AIToolsDail | AI Tools | 7 days`\n\n"
             "*Requirements:*\n"
             "• Add me as admin to your channel\n"
             "• Channel can be public or private\n"
@@ -171,7 +172,7 @@ class AutoPostBot:
         await update.message.reply_text(
             "📋 *Campaign Setup (Step 1/3)*\n\n"
             "Send your channel username:\n"
-            "Example: `@my_cool_channel`\n\n"
+            "Example: `@AIToolsDail`\n\n"
             "⚠️ Make sure I'm an admin in your channel first!",
             parse_mode="Markdown"
         )
@@ -201,7 +202,7 @@ class AutoPostBot:
             if not text.startswith('@') and not text.startswith('-100'):
                 await update.message.reply_text(
                     "❌ Please send a valid channel username starting with @\n"
-                    "Example: `@my_channel`"
+                    "Example: `@AIToolsDail`"
                 )
                 return
             
@@ -212,7 +213,7 @@ class AutoPostBot:
             await update.message.reply_text(
                 f"✅ Channel: {text}\n\n"
                 f"*Step 2/3:* What topic should I post about?\n"
-                f"Example: `Artificial Intelligence`, `Fitness Tips`, `Stock Market`",
+                f"Example: `AI Tools`, `Crypto Trading`, `Fitness Tips`",
                 parse_mode="Markdown"
             )
         
@@ -277,7 +278,7 @@ class AutoPostBot:
             await update.message.reply_text(
                 "❌ Invalid format!\n"
                 "Use: `@channel | topic | days`\n"
-                "Example: `@my_channel | Crypto News | 7 days`"
+                "Example: `@AIToolsDail | AI Tools | 7 days`"
             )
             return
         
@@ -287,7 +288,7 @@ class AutoPostBot:
         if not channel.startswith('@') and not channel.startswith('-100'):
             await update.message.reply_text(
                 "❌ Channel must start with @\n"
-                "Example: `@my_channel`"
+                "Example: `@AIToolsDail`"
             )
             return
         
@@ -483,7 +484,7 @@ class AutoPostBot:
                 "Start one with:\n"
                 "• `/setup` for interactive setup\n"
                 "• Or send: `@channel | topic | days`\n\n"
-                "Example: `@my_channel | Crypto | 7 days`",
+                "Example: `@AIToolsDail | AI Tools | 7 days`",
                 parse_mode="Markdown"
             )
             return
@@ -595,6 +596,12 @@ class AutoPostBot:
         print(f"✅ Campaign ended for user {user_id}, memory cleared")
 
 
+# ============ HEALTH CHECK SERVER ============
+async def health_check(request):
+    """Health check endpoint for Render"""
+    return web.Response(text="Bot is running", status=200)
+
+
 # ============ RUN BOT ============
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -623,7 +630,7 @@ async def main():
     print("🤖 Bot is running with in-memory storage (no database)!")
     print(f"Active campaigns: {len(active_campaigns)}")
     
-    # Start bot with polling (simpler and more compatible)
+    # Start bot with polling
     print("🔄 Starting bot with long polling...")
     
     # Initialize and start polling
@@ -633,6 +640,17 @@ async def main():
     
     print(f"✅ Bot is running and listening for messages!")
     print(f"💡 Send /start to your bot on Telegram to begin")
+    
+    # Start health check server for Render
+    app = web.Application()
+    app.router.add_get('/health', health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', PORT)
+    await site.start()
+    
+    print(f"✅ Health check server running on port {PORT}")
+    print(f"✅ Render timeout issue fixed!")
     
     # Keep running
     await asyncio.Event().wait()
