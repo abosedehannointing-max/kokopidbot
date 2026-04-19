@@ -19,67 +19,69 @@ print(f"✅ Bot starting...")
 # Store campaigns
 active_campaigns: Dict[int, Dict] = {}
 
-# ============ POSTING LOOP ============
-async def posting_loop(application):
-    """Background loop that posts every 90 minutes"""
-    while True:
-        try:
-            current_time = datetime.now()
-            
-            for user_id, campaign in list(active_campaigns.items()):
-                # Check if campaign is still active
-                if current_time > campaign['end_date']:
-                    # Campaign expired
-                    del active_campaigns[user_id]
-                    try:
-                        await application.bot.send_message(
-                            chat_id=user_id,
-                            text=f"✅ *Campaign Completed!*\n\nTopic: {campaign['topic']}\nTotal posts: {campaign['posts_made']}",
-                            parse_mode="Markdown"
-                        )
-                    except:
-                        pass
-                    continue
-                
-                # Check if it's time to post (every 90 minutes)
-                time_since_last = (current_time - campaign['last_post_time']).total_seconds()
-                
-                if time_since_last >= 5400:  # 90 minutes in seconds
-                    # Generate post
-                    campaign['post_number'] += 1
-                    campaign['posts_made'] += 1
-                    day = (current_time - campaign['start_date']).days + 1
-                    
-                    # Different post templates
-                    templates = [
-                        f"💖 *{campaign['topic'].upper()}* 💖\n\nPost #{campaign['post_number']} • Day {day}\n\nStay consistent in love! Small gestures matter.\n\n#{campaign['topic'].replace(' ', '')}",
-                        
-                        f"💕 *Love Tip #{campaign['post_number']}* 💕\n\nDay {day}: True love grows when both partners feel heard and valued.\n\n#{campaign['topic'].replace(' ', '')}",
-                        
-                        f"✨ *{campaign['topic'].upper()} INSIGHT* ✨\n\nDay {day} • Post {campaign['post_number']}\n\nA healthy relationship needs trust, respect, and communication.\n\n#{campaign['topic'].replace(' ', '')}",
-                        
-                        f"🌹 *Daily Love Wisdom* 🌹\n\nDay {day}: Love isn't about finding the perfect person, but learning to see an imperfect person perfectly.\n\n#{campaign['topic'].replace(' ', '')}"
-                    ]
-                    
-                    post_text = templates[campaign['post_number'] % len(templates)]
-                    
-                    try:
-                        await application.bot.send_message(
-                            chat_id=campaign['channel'],
-                            text=post_text,
-                            parse_mode="Markdown"
-                        )
-                        campaign['last_post_time'] = current_time
-                        print(f"✅ Posted to {campaign['channel']} - Post #{campaign['posts_made']}")
-                        
-                    except Exception as e:
-                        print(f"❌ Error posting to {campaign['channel']}: {e}")
-            
-        except Exception as e:
-            print(f"❌ Loop error: {e}")
+# ============ POSTING FUNCTION ============
+async def send_post(application, user_id):
+    """Send a single post to the channel"""
+    campaign = active_campaigns.get(user_id)
+    if not campaign:
+        return False
+    
+    # Check if campaign expired
+    if datetime.now() > campaign['end_date']:
+        del active_campaigns[user_id]
+        return False
+    
+    # Generate post content
+    campaign['posts_made'] += 1
+    campaign['post_number'] += 1
+    day = (datetime.now() - campaign['start_date']).days + 1
+    
+    # Beautiful post templates
+    templates = [
+        f"💖 *LOVE TIPS - Post #{campaign['post_number']}* 💖\n\n"
+        f"Day {day}: True love isn't about perfection. It's about accepting each other's flaws and growing together.\n\n"
+        f"#{campaign['topic'].replace(' ', '')} #LoveTips",
         
-        # Check every 30 seconds
-        await asyncio.sleep(30)
+        f"💕 *RELATIONSHIP ADVICE* 💕\n\n"
+        f"Day {day}: The best relationships have partners who communicate openly and listen without judgment.\n\n"
+        f"#{campaign['topic'].replace(' ', '')} #RelationshipGoals",
+        
+        f"✨ *LOVE INSIGHT #{campaign['post_number']}* ✨\n\n"
+        f"Day {day}: Love grows when you appreciate the small things - a kind word, a warm hug, a listening ear.\n\n"
+        f"#{campaign['topic'].replace(' ', '')} #DailyLove",
+        
+        f"🌹 *MODERN LOVE TIP* 🌹\n\n"
+        f"Day {day}: Don't chase love. Attract it by being the best version of yourself.\n\n"
+        f"#{campaign['topic'].replace(' ', '')} #ModernLove"
+    ]
+    
+    post_text = templates[campaign['post_number'] % len(templates)]
+    
+    try:
+        await application.bot.send_message(
+            chat_id=campaign['channel'],
+            text=post_text,
+            parse_mode="Markdown"
+        )
+        print(f"✅ Posted to {campaign['channel']} - Post #{campaign['posts_made']}")
+        return True
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+# ============ SCHEDULER FUNCTION ============
+async def schedule_posts(application, user_id, interval_minutes):
+    """Schedule posts at regular intervals"""
+    while user_id in active_campaigns:
+        # Wait for the interval
+        await asyncio.sleep(interval_minutes * 60)
+        
+        # Check if campaign still exists
+        if user_id not in active_campaigns:
+            break
+        
+        # Send the post
+        await send_post(application, user_id)
 
 # ============ BOT CLASS ============
 class WorkingBot:
@@ -87,7 +89,7 @@ class WorkingBot:
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🤖 *Auto Post Bot* 🤖\n\n"
-            "To start a campaign, send:\n"
+            "To start, send:\n"
             "`@channel | topic | days`\n\n"
             "*Example:*\n"
             "`@modernlovetips | Love Tips | 3 days`\n\n"
@@ -124,20 +126,9 @@ class WorkingBot:
                 await update.message.reply_text("❌ Channel must start with @")
                 return
             
-            # Test if bot can post
-            try:
-                await context.bot.send_message(
-                    chat_id=channel,
-                    text=f"✅ Campaign activated! I'll post about {topic} every 90 minutes for {days} days."
-                )
-            except Exception as e:
-                await update.message.reply_text(
-                    f"❌ Cannot post to {channel}\n"
-                    f"Error: {str(e)[:100]}\n\n"
-                    f"Make sure:\n"
-                    f"1️⃣ Bot is admin in {channel}\n"
-                    f"2️⃣ Channel name is correct"
-                )
+            # Check if already has campaign
+            if user_id in active_campaigns:
+                await update.message.reply_text("❌ You already have an active campaign. Use /stop first.")
                 return
             
             # Store campaign
@@ -148,8 +139,7 @@ class WorkingBot:
                 'start_date': datetime.now(),
                 'end_date': datetime.now() + timedelta(days=days),
                 'posts_made': 0,
-                'post_number': 0,
-                'last_post_time': datetime.now()  # Start timer now
+                'post_number': 0
             }
             
             await update.message.reply_text(
@@ -158,10 +148,26 @@ class WorkingBot:
                 f"📝 Topic: {topic}\n"
                 f"📅 Duration: {days} days\n"
                 f"⏱️ Posts every: 90 minutes\n\n"
-                f"First post will arrive in 90 minutes!\n"
+                f"📨 First post arriving in 5 seconds...\n"
                 f"Use /status to track progress",
                 parse_mode="Markdown"
             )
+            
+            # Wait 5 seconds then send first post
+            await asyncio.sleep(5)
+            
+            # Send first post
+            success = await send_post(context.application, user_id)
+            
+            if success:
+                await update.message.reply_text(f"✅ First post sent to {channel}!")
+                
+                # Start the scheduled posts in background
+                asyncio.create_task(schedule_posts(context.application, user_id, 90))
+            else:
+                await update.message.reply_text(f"❌ Failed to post. Make sure I'm admin in {channel}")
+                del active_campaigns[user_id]
+        
         else:
             await self.start(update, context)
     
@@ -175,12 +181,11 @@ class WorkingBot:
         campaign = active_campaigns[user_id]
         days_passed = (datetime.now() - campaign['start_date']).days
         days_left = (campaign['end_date'] - datetime.now()).days
-        time_since_last = (datetime.now() - campaign['last_post_time']).total_seconds()
-        minutes_until_next = max(0, 90 - int(time_since_last / 60))
         
-        # Progress bar
         total_expected = campaign['days'] * 16
         progress = (campaign['posts_made'] / total_expected) * 100 if total_expected > 0 else 0
+        
+        # Progress bar
         bar_length = 20
         filled = int(bar_length * progress / 100)
         bar = '█' * filled + '░' * (bar_length - filled)
@@ -192,8 +197,7 @@ class WorkingBot:
             f"📨 Posts made: {campaign['posts_made']}\n"
             f"📊 Progress: {bar} {progress:.0f}%\n"
             f"📅 Day {days_passed + 1} of {campaign['days']}\n"
-            f"⏰ {days_left} days remaining\n"
-            f"⏱️ Next post in: {minutes_until_next} minutes\n\n"
+            f"⏰ {days_left} days remaining\n\n"
             f"Use /stop to end campaign",
             parse_mode="Markdown"
         )
@@ -211,7 +215,7 @@ class WorkingBot:
             await update.message.reply_text(
                 f"🛑 *Campaign Stopped*\n\n"
                 f"📝 Topic: {topic}\n"
-                f"📨 Posts made: {posts_made}\n\n"
+                f"📨 Total posts: {posts_made}\n\n"
                 f"Start a new campaign with /start",
                 parse_mode="Markdown"
             )
@@ -237,10 +241,6 @@ async def main():
     
     print("✅ Bot is LIVE!")
     print("💬 Send /start to your bot on Telegram")
-    
-    # Start the background posting loop
-    asyncio.create_task(posting_loop(application))
-    print("🔄 Posting loop started (will post every 90 minutes)")
     
     await asyncio.Event().wait()
 
